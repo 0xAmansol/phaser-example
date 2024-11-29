@@ -6,66 +6,152 @@ class GameScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.tilemapTiledJSON("map", "/assets/map1.tmj");
-    this.load.image("tileset1", "/assets/roomBuilderTileset.png");
-    this.load.image("tileset2", "/assets/OfficeInteriors.png");
-    this.load.atlas("player", "/assets/fauna.png", "/assets/fauna.json");
+    this.load.tilemapTiledJSON("map", "/assets/maps/map1.tmj");
+    this.load.image("roombuilder", "/assets/tilesets/roomBuilderTileset.png");
+    this.load.image("interiors", "/assets/tilesets/OfficeInteriors.png");
+    this.load.spritesheet("player", "/assets/characters/spritesheet.png", {
+      frameWidth: 32,
+      frameHeight: 64,
+    });
   }
 
   create() {
     const map = this.make.tilemap({ key: "map" });
-    const tileset1 = map.addTilesetImage("RoomBuilder", "tileset1");
-    const tileset2 = map.addTilesetImage("office-interiors", "tileset2");
+    const roomBuilderTiles = map.addTilesetImage("RoomBuilder", "roombuilder");
+    const interiorTiles = map.addTilesetImage("office-interiors", "interiors");
 
-    map.createLayer("Corners", tileset1, 0, 0);
-    map.createLayer("Objects-2", tileset2, 0, 0);
-    map.createLayer("Objects", tileset2, 0, 0);
-    const interiorLayer = map.createLayer("Interiors", tileset2, 0, 0);
-    interiorLayer.renderDebug(this.add.graphics());
-    map.createLayer("Walls", tileset1, 0, 0);
-    map.createLayer("Objects-behind-walls", tileset2, 0, 0);
-    map.createLayer("Ground", tileset1, 0, 0);
+    const layers = [
+      { name: "Ground", tileset: [roomBuilderTiles, interiorTiles] },
+      {
+        name: "Objects-behind-walls",
+        tileset: [roomBuilderTiles, interiorTiles],
+      },
+      { name: "Walls", tileset: [roomBuilderTiles, interiorTiles] },
+      {
+        name: "Objects-behind-interiors",
+        tileset: [roomBuilderTiles, interiorTiles],
+      },
+      { name: "Interiors", tileset: [roomBuilderTiles, interiorTiles] },
+      { name: "Objects", tileset: [roomBuilderTiles, interiorTiles] },
+      { name: "Objects-2", tileset: [roomBuilderTiles, interiorTiles] },
+      { name: "Objects-3", tileset: [roomBuilderTiles, interiorTiles] },
+      { name: "Corners", tileset: [roomBuilderTiles, interiorTiles] },
+    ];
+    this.mapLayers = {};
 
-    const player = this.add.sprite(200, 200, "player", "walk-down-3.png");
-    this.cameras.main.scrollY -= 200;
+    layers.forEach(({ name, tileset }) => {
+      const layer = map.createLayer(name, tileset, 0, 0);
 
-    this.anims.create({
-      key: "player-idle-down",
-      frames: [{ key: "player", frame: "walk-down-3.png" }],
+      this.mapLayers[name] = layer;
     });
 
-    this.anims.create({
-      key: "player-run-down",
-      frames: this.anims.generateFrameNames("player", {
-        start: 1,
-        end: 8,
-        prefix: "run-down-",
-        suffix: ".png",
-      }),
-      repeat: -1,
-      frameRate: 15,
+    layers.forEach(({ name, tileset }) => {
+      const layer = this.mapLayers[name];
+      if (layer) {
+        layer.setCollisionByProperty({ collides: true });
+        if (tileset.includes([roomBuilderTiles, interiorTiles])) {
+          layer.setCollisionBetween(1, 200);
+        } else {
+          layer.setCollisionBetween(1, 200);
+        }
+      }
     });
 
-    player.anims.play("player-run-down");
+    this.player = this.physics.add.sprite(300, 300, "player"); // Start at (300, 300)
+    this.cameras.main.startFollow(this.player);
 
+    layers.forEach(({ name }) => {
+      const layer = this.mapLayers[name];
+      if (layer) {
+        this.physics.add.collider(this.player, layer);
+      }
+    });
+
+    const animationFrames = {
+      "walk-left": { start: 126, end: 129 },
+      "walk-right": { start: 112, end: 117 },
+      "walk-up": { start: 118, end: 123 },
+      "walk-down": { start: 130, end: 135 },
+      "idle-left": { start: 2, end: 2 },
+      "idle-right": { start: 0, end: 0 },
+      "idle-up": { start: 1, end: 1 },
+      "idle-down": { start: 3, end: 3 },
+    };
+    Object.keys(animationFrames).forEach((key) => {
+      const { start, end } = animationFrames[key];
+      this.anims.create({
+        key,
+        frames: this.anims.generateFrameNumbers("player", { start, end }),
+        frameRate: key.startsWith("walk") ? 8 : 1,
+        repeat: key.startsWith("walk") ? -1 : 0,
+      });
+    });
+
+    var help = this.add.text(16, 16, "Arrow keys to move", {
+      fontSize: "14px",
+      padding: { x: 10, y: 5 },
+      backgroundColor: "#000000",
+      fill: "#ffffff",
+    });
+
+    help.setScrollFactor(0);
     this.cursors = this.input.keyboard.createCursorKeys();
-  }
-  // update() {
-  //   const speed = 200;
-  //   player.setVelocityY(0);
 
-  //   if (this.cursors.left.isDown) {
-  //     this.player.setVelocityX(-speed);
-  //     this.player.anims.play("player-run-down", true);
-  //   }
-  // }
+    this.lastDirection = "down";
+  }
+
+  update() {
+    const speed = 150;
+    this.player.setVelocity(0);
+
+    // Player movement logic
+    if (this.cursors.left.isDown) {
+      this.player.setVelocityX(-speed);
+      this.player.anims.play("walk-left", true);
+      this.lastDirection = "left";
+    } else if (this.cursors.right.isDown) {
+      this.player.setVelocityX(speed);
+      this.player.anims.play("walk-right", true);
+      this.lastDirection = "right";
+    } else if (this.cursors.up.isDown) {
+      this.player.setVelocityY(-speed);
+      this.player.anims.play("walk-up", true);
+      this.lastDirection = "up";
+    } else if (this.cursors.down.isDown) {
+      this.player.setVelocityY(speed);
+      this.player.anims.play("walk-down", true);
+      this.lastDirection = "down";
+    } else {
+      switch (this.lastDirection) {
+        case "left":
+          this.player.anims.play("idle-left", true);
+          break;
+        case "right":
+          this.player.anims.play("idle-right", true);
+          break;
+        case "up":
+          this.player.anims.play("idle-up", true);
+          break;
+        case "down":
+          this.player.anims.play("idle-down", true);
+          break;
+      }
+    }
+  }
 }
 
 const createGame = () => {
   return new Phaser.Game({
     type: Phaser.AUTO,
-    width: 1000,
-    height: 1000,
+    physics: {
+      default: "arcade",
+      arcade: {
+        debug: true,
+        gravity: { y: 0 },
+      },
+    },
+    width: 600,
+    height: 400,
     scene: GameScene,
     parent: "phaser-container",
   });

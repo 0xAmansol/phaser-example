@@ -10,8 +10,7 @@ const Game = () => {
   }, []);
 
   return (
-    <div>
-      <h1>My Phaser Game</h1>
+    <div className=" grid  place-items-center h-screen">
       <div id="phaser-container"></div>
     </div>
   );
